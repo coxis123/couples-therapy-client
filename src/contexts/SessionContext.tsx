@@ -3,6 +3,45 @@ import { useWebSocket, WebSocketMessage } from '../hooks/useWebSocket';
 import { useVoice } from '../hooks/useVoice';
 import { useAuth } from './AuthContext';
 
+// Audio playback helper
+function playAudioFromBase64(base64Data: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    try {
+      // Decode base64 to binary
+      const binaryString = atob(base64Data);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+
+      // Create blob and audio element
+      const blob = new Blob([bytes], { type: 'audio/wav' });
+      const audioUrl = URL.createObjectURL(blob);
+      const audio = new Audio(audioUrl);
+
+      audio.onended = () => {
+        URL.revokeObjectURL(audioUrl);
+        resolve();
+      };
+
+      audio.onerror = (e) => {
+        URL.revokeObjectURL(audioUrl);
+        console.error('[Audio] Playback error:', e);
+        reject(e);
+      };
+
+      audio.play().catch(err => {
+        URL.revokeObjectURL(audioUrl);
+        console.error('[Audio] Play failed:', err);
+        reject(err);
+      });
+    } catch (err) {
+      console.error('[Audio] Failed to decode audio:', err);
+      reject(err);
+    }
+  });
+}
+
 interface Message {
   id: string;
   actor: 'trainee' | 'partner_a' | 'partner_b' | 'system';
@@ -114,6 +153,21 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         setSessionState(prev => ({ ...prev, ...message.state }));
         break;
         
+      case 'audio_complete':
+        // Play the received audio
+        console.log('[Session] Audio received for', message.characterId);
+        if (message.audioData) {
+          playAudioFromBase64(message.audioData).catch(err => {
+            console.warn('[Session] Audio playback failed:', err);
+          });
+        }
+        break;
+
+      case 'audio_chunk':
+        // Streaming audio chunks - could buffer these for smoother playback
+        // For now, we wait for audio_complete
+        break;
+
       case 'error':
         console.error('[Session] Error:', message.message);
         break;
