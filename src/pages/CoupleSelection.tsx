@@ -28,7 +28,8 @@ export default function CoupleSelection() {
 
   const fetchCouples = async () => {
     try {
-      const response = await fetch('/api/couples/templates');
+      const apiUrl = import.meta.env.VITE_API_URL || '';
+      const response = await fetch(`${apiUrl}/api/couples/templates`);
       if (response.ok) {
         const data = await response.json();
         setCouples(data);
