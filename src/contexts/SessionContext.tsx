@@ -116,7 +116,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // WebSocket connection
-  const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
+  const wsUrl = import.meta.env.VITE_WS_URL
+    ? `${import.meta.env.VITE_WS_URL}/ws`
+    : `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
   const {
     isConnected,
     isConnecting,
@@ -149,7 +151,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const startSession = useCallback(async (coupleId: string) => {
     try {
       // Create session via REST API
-      const response = await fetch('/api/sessions', {
+      const apiUrl = import.meta.env.VITE_API_URL || '';
+      const response = await fetch(`${apiUrl}/api/sessions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -196,7 +199,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       wsSendMessage({ type: 'session_end' });
 
       // End session via REST API
-      await fetch(`/api/sessions/${sessionId}/end`, {
+      const apiUrl = import.meta.env.VITE_API_URL || '';
+      await fetch(`${apiUrl}/api/sessions/${sessionId}/end`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
