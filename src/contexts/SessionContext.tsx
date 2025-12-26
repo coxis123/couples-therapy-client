@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from 'react';
 import { useWebSocket, WebSocketMessage } from '../hooks/useWebSocket';
 import { useVoice } from '../hooks/useVoice';
 import { useAuth } from './AuthContext';
@@ -62,6 +62,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     lastSpeaker: null,
     interventionCount: 0,
   });
+
+  // Ref to track pending session that needs to be started once WebSocket connects
+  const pendingSessionRef = useRef<string | null>(null);
 
   // Handle WebSocket messages
   const handleWebSocketMessage = useCallback((message: WebSocketMessage) => {
@@ -147,6 +150,19 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     },
   });
 
+  // Effect to send session_start when WebSocket connects (fixes timing issue)
+  useEffect(() => {
+    if (isConnected && pendingSessionRef.current) {
+      console.log('[Session] WebSocket connected, sending session_start for:', pendingSessionRef.current);
+      wsSendMessage({
+        type: 'session_start',
+        sessionId: pendingSessionRef.current,
+      });
+      startRecording();
+      pendingSessionRef.current = null; // Clear pending session
+    }
+  }, [isConnected, wsSendMessage, startRecording]);
+
   // Start a new therapy session
   const startSession = useCallback(async (coupleId: string) => {
     try {
@@ -170,22 +186,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setMessages([]);
       setCurrentTranscript('');
 
-      // Connect WebSocket
-      wsConnect();
+      // Store session ID for when WebSocket connects
+      pendingSessionRef.current = session.id;
+      console.log('[Session] Created session, connecting WebSocket:', session.id);
 
-      // Wait for connection, then start session
-      setTimeout(() => {
-        wsSendMessage({
-          type: 'session_start',
-          sessionId: session.id,
-        });
-        startRecording();
-      }, 500);
+      // Connect WebSocket - useEffect will send session_start when connected
+      wsConnect();
     } catch (error) {
       console.error('[Session] Failed to start:', error);
       throw error;
     }
-  }, [user, wsConnect, wsSendMessage, startRecording]);
+  }, [user, wsConnect]);
 
   // End the current session
   const endSession = useCallback(async () => {
