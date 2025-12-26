@@ -10,6 +10,7 @@ interface Message {
   timestamp: Date;
   emotion?: string;
   isInterim?: boolean;
+  characterName?: string; // Actual name of the character (e.g., "Robert Chen")
 }
 
 interface SessionState {
@@ -98,6 +99,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           content: message.text,
           timestamp: new Date(),
           emotion: message.emotion,
+          characterName: message.characterName, // Store actual name from server
         }]);
         
         // Update session state

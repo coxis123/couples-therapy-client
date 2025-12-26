@@ -177,7 +177,7 @@ export default function TherapyRoom() {
                       )}
                       <span className="text-xs font-medium text-earth-500">
                         {message.actor === 'trainee' ? 'You' :
-                         message.actor === 'partner_a' ? 'Partner A' : 'Partner B'}
+                         message.characterName || (message.actor === 'partner_a' ? 'Partner A' : 'Partner B')}
                       </span>
                       {message.emotion && (
                         <span className={`w-2 h-2 rounded-full ${getEmotionClass(message.emotion)}`}
