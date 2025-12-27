@@ -102,9 +102,9 @@ export function ConvaiProvider({ children, config }: ConvaiProviderProps) {
     startWithAudioOn: false,
   });
 
-  // Track previous message counts to detect new messages
-  const prevRobertMessagesRef = useRef<number>(0);
-  const prevLindaMessagesRef = useRef<number>(0);
+  // Track which message IDs we've already added to UI (with their content length to detect updates)
+  const processedRobertMessagesRef = useRef<Map<string, number>>(new Map());
+  const processedLindaMessagesRef = useRef<Map<string, number>>(new Map());
 
   // Note: Context sharing between characters is handled via sendUserTextMessage()
   // when triggerCoupleInteraction is called, not via automatic syncing.
@@ -131,36 +131,34 @@ export function ConvaiProvider({ children, config }: ConvaiProviderProps) {
     return type === 'convai' || type === 'bot-llm-text';
   };
 
-  // Process Robert's messages
+  // Process Robert's messages - handles SDK streaming where content is updated in place
   useEffect(() => {
     const robertMessages = robertClient.chatMessages || [];
-    const newMessageCount = robertMessages.length;
 
-    // Debug: log all messages to understand what types are coming through
-    if (newMessageCount > 0) {
-      console.log('[Convai Robert] chatMessages count:', newMessageCount);
-      robertMessages.forEach((m, i) => {
-        console.log(`[Convai Robert] Message ${i}:`, {
-          type: m.type,
-          content: m.content,
-          contentLength: m.content?.length || 0,
-          isFinal: m.isFinal
+    for (const msg of robertMessages) {
+      // Only process bot responses with actual content
+      if (!isBotResponse(msg.type) || !msg.content || msg.content.length === 0) {
+        continue;
+      }
+
+      const msgId = msg.id || `robert-${msg.timestamp}`;
+      const previousContentLength = processedRobertMessagesRef.current.get(msgId) || 0;
+
+      // Only process if this is new content (longer than what we've seen)
+      // This handles streaming where content grows over time
+      if (msg.content.length > previousContentLength) {
+        console.log('[Convai Robert] New/updated content:', {
+          id: msgId,
+          type: msg.type,
+          contentPreview: msg.content.slice(0, 50),
+          previousLength: previousContentLength,
+          newLength: msg.content.length
         });
-      });
-    }
 
-    if (newMessageCount > prevRobertMessagesRef.current) {
-      // Get new messages
-      const newMessages = robertMessages.slice(prevRobertMessagesRef.current);
-
-      for (const msg of newMessages) {
-        console.log('[Convai Robert] Processing message:', { type: msg.type, content: msg.content?.slice(0, 50), isFinal: msg.isFinal });
-
-        // Process bot responses - check for both 'convai' and 'bot-llm-text' types
-        // Only process final messages to avoid duplicates from streaming
-        if (isBotResponse(msg.type) && msg.content && msg.isFinal !== false) {
+        // If this is a brand new message (not seen before), add to UI
+        if (previousContentLength === 0) {
           const characterMessage: CharacterMessage = {
-            id: msg.id || crypto.randomUUID(),
+            id: msgId,
             speaker: 'robert',
             content: msg.content,
             timestamp: new Date(msg.timestamp),
@@ -168,42 +166,54 @@ export function ConvaiProvider({ children, config }: ConvaiProviderProps) {
 
           console.log('[Convai Robert] Adding message to UI:', characterMessage.content.slice(0, 50));
           setMessages(prev => [...prev, characterMessage]);
-
-          // Update shared context
-          setSharedContext(prev => ({
-            ...prev,
-            robertLastSaid: msg.content,
-            lastSpeaker: 'robert',
-          }));
+        } else {
+          // Update existing message content (streaming update)
+          setMessages(prev => prev.map(m =>
+            m.id === msgId ? { ...m, content: msg.content } : m
+          ));
         }
-      }
 
-      prevRobertMessagesRef.current = newMessageCount;
+        // Update shared context with latest content
+        setSharedContext(prev => ({
+          ...prev,
+          robertLastSaid: msg.content,
+          lastSpeaker: 'robert',
+        }));
+
+        // Track that we've processed this content length
+        processedRobertMessagesRef.current.set(msgId, msg.content.length);
+      }
     }
   }, [robertClient.chatMessages]);
 
-  // Process Linda's messages
+  // Process Linda's messages - handles SDK streaming where content is updated in place
   useEffect(() => {
     const lindaMessages = lindaClient.chatMessages || [];
-    const newMessageCount = lindaMessages.length;
 
-    // Debug: log all messages to understand what types are coming through
-    if (newMessageCount > 0) {
-      console.log('[Convai Linda] chatMessages:', lindaMessages.map(m => ({ type: m.type, content: m.content?.slice(0, 50), isFinal: m.isFinal })));
-    }
+    for (const msg of lindaMessages) {
+      // Only process bot responses with actual content
+      if (!isBotResponse(msg.type) || !msg.content || msg.content.length === 0) {
+        continue;
+      }
 
-    if (newMessageCount > prevLindaMessagesRef.current) {
-      // Get new messages
-      const newMessages = lindaMessages.slice(prevLindaMessagesRef.current);
+      const msgId = msg.id || `linda-${msg.timestamp}`;
+      const previousContentLength = processedLindaMessagesRef.current.get(msgId) || 0;
 
-      for (const msg of newMessages) {
-        console.log('[Convai Linda] Processing message:', { type: msg.type, content: msg.content?.slice(0, 50), isFinal: msg.isFinal });
+      // Only process if this is new content (longer than what we've seen)
+      // This handles streaming where content grows over time
+      if (msg.content.length > previousContentLength) {
+        console.log('[Convai Linda] New/updated content:', {
+          id: msgId,
+          type: msg.type,
+          contentPreview: msg.content.slice(0, 50),
+          previousLength: previousContentLength,
+          newLength: msg.content.length
+        });
 
-        // Process bot responses - check for both 'convai' and 'bot-llm-text' types
-        // Only process final messages to avoid duplicates from streaming
-        if (isBotResponse(msg.type) && msg.content && msg.isFinal !== false) {
+        // If this is a brand new message (not seen before), add to UI
+        if (previousContentLength === 0) {
           const characterMessage: CharacterMessage = {
-            id: msg.id || crypto.randomUUID(),
+            id: msgId,
             speaker: 'linda',
             content: msg.content,
             timestamp: new Date(msg.timestamp),
@@ -211,17 +221,23 @@ export function ConvaiProvider({ children, config }: ConvaiProviderProps) {
 
           console.log('[Convai Linda] Adding message to UI:', characterMessage.content.slice(0, 50));
           setMessages(prev => [...prev, characterMessage]);
-
-          // Update shared context
-          setSharedContext(prev => ({
-            ...prev,
-            lindaLastSaid: msg.content,
-            lastSpeaker: 'linda',
-          }));
+        } else {
+          // Update existing message content (streaming update)
+          setMessages(prev => prev.map(m =>
+            m.id === msgId ? { ...m, content: msg.content } : m
+          ));
         }
-      }
 
-      prevLindaMessagesRef.current = newMessageCount;
+        // Update shared context with latest content
+        setSharedContext(prev => ({
+          ...prev,
+          lindaLastSaid: msg.content,
+          lastSpeaker: 'linda',
+        }));
+
+        // Track that we've processed this content length
+        processedLindaMessagesRef.current.set(msgId, msg.content.length);
+      }
     }
   }, [lindaClient.chatMessages]);
 
@@ -244,9 +260,9 @@ export function ConvaiProvider({ children, config }: ConvaiProviderProps) {
         lindaClient.connect(),
       ]);
 
-      // Reset message counters
-      prevRobertMessagesRef.current = 0;
-      prevLindaMessagesRef.current = 0;
+      // Reset processed message trackers
+      processedRobertMessagesRef.current.clear();
+      processedLindaMessagesRef.current.clear();
     } catch (error) {
       console.error('[Convai] Failed to connect:', error);
       throw error;
