@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Plus, SlidersHorizontal, ChevronRight, Heart, Clock, AlertCircle } from 'lucide-react';
+import { Users, ChevronRight, Heart, Clock, AlertCircle } from 'lucide-react';
 
 interface CoupleProfile {
   id: string;
@@ -20,7 +20,6 @@ export default function CoupleSelection() {
   const navigate = useNavigate();
   const [couples, setCouples] = useState<CoupleProfile[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<string>('all');
 
   useEffect(() => {
     fetchCouples();
@@ -45,9 +44,7 @@ export default function CoupleSelection() {
     }
   };
 
-  const filteredCouples = couples.filter(
-    (couple) => filter === 'all' || couple.difficulty_level === filter
-  );
+  // Only The Chens couple is available (filtered during fetch)
 
   const startSession = (coupleId: string) => {
     navigate(`/session/${coupleId}`);
@@ -96,7 +93,7 @@ export default function CoupleSelection() {
             <div className="h-4 w-32 rounded bg-earth-100 shimmer mb-2" />
             <div className="h-3 w-24 rounded bg-earth-100 shimmer" />
           </div>
-        ) : filteredCouples.length === 0 ? (
+        ) : couples.length === 0 ? (
           <div className="text-center py-16 card-warm">
             <div className="w-16 h-16 rounded-2xl bg-earth-100 flex items-center justify-center mx-auto mb-4">
               <Users size={32} className="text-earth-400" />
@@ -110,7 +107,7 @@ export default function CoupleSelection() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredCouples.map((couple, index) => (
+            {couples.map((couple, index) => (
               <div
                 key={couple.id}
                 className={`card-warm overflow-hidden cursor-pointer group
@@ -219,7 +216,7 @@ export default function CoupleSelection() {
         )}
 
         {/* Info Section */}
-        {!loading && filteredCouples.length > 0 && (
+        {!loading && couples.length > 0 && (
           <div className="mt-12 p-6 card-warm bg-earth-50/50">
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
               <div className="w-12 h-12 rounded-xl bg-sage-100 flex items-center justify-center flex-shrink-0">
