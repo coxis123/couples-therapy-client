@@ -32,7 +32,11 @@ export default function CoupleSelection() {
       const response = await fetch(`${apiUrl}/api/couples/templates`);
       if (response.ok) {
         const data = await response.json();
-        setCouples(data);
+        // Only show The Chens - the only couple with Convai characters configured
+        const availableCouples = data.filter((c: CoupleProfile) =>
+          c.name.toLowerCase().includes('chen')
+        );
+        setCouples(availableCouples);
       }
     } catch (error) {
       console.error('Failed to fetch couples:', error);
@@ -80,33 +84,10 @@ export default function CoupleSelection() {
               Select a couple profile to begin practicing therapy techniques
             </p>
           </div>
-          <button className="inline-flex items-center gap-2 px-5 py-2.5 bg-terracotta-500
-                             text-white rounded-xl font-medium hover:bg-terracotta-600
-                             transition-all shadow-warm hover:shadow-warm-lg">
-            <Plus size={20} />
-            Create Custom
-          </button>
+{/* Create Custom button hidden - only pre-configured Convai couples available */}
         </div>
 
-        {/* Filters */}
-        <div className="flex items-center gap-3 mb-8 overflow-x-auto pb-2">
-          <SlidersHorizontal size={18} className="text-earth-400 flex-shrink-0" />
-          <div className="flex gap-2">
-            {['all', 'beginner', 'intermediate', 'advanced'].map((level) => (
-              <button
-                key={level}
-                onClick={() => setFilter(level)}
-                className={`px-4 py-2 rounded-xl font-medium transition-all whitespace-nowrap ${
-                  filter === level
-                    ? 'bg-terracotta-500 text-white shadow-warm'
-                    : 'bg-sanctuary-50 text-earth-600 hover:bg-earth-100 border border-earth-200'
-                }`}
-              >
-                {level === 'all' ? 'All Levels' : level.charAt(0).toUpperCase() + level.slice(1)}
-              </button>
-            ))}
-          </div>
-        </div>
+{/* Filters hidden - only one couple available */}
 
         {/* Couples Grid */}
         {loading ? (
