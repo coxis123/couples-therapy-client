@@ -110,18 +110,32 @@ export function ConvaiProvider({ children, config }: ConvaiProviderProps) {
   // when triggerCoupleInteraction is called, not via automatic syncing.
   // This prevents infinite response loops.
 
+  // Helper to check if message is a bot response we should display
+  const isBotResponse = (type: string) => {
+    // 'convai' is the main character response, 'bot-llm-text' is LLM-generated text
+    return type === 'convai' || type === 'bot-llm-text';
+  };
+
   // Process Robert's messages
   useEffect(() => {
     const robertMessages = robertClient.chatMessages || [];
     const newMessageCount = robertMessages.length;
+
+    // Debug: log all messages to understand what types are coming through
+    if (newMessageCount > 0) {
+      console.log('[Convai Robert] chatMessages:', robertMessages.map(m => ({ type: m.type, content: m.content?.slice(0, 50), isFinal: m.isFinal })));
+    }
 
     if (newMessageCount > prevRobertMessagesRef.current) {
       // Get new messages
       const newMessages = robertMessages.slice(prevRobertMessagesRef.current);
 
       for (const msg of newMessages) {
-        // Only process bot responses (LLM text)
-        if (msg.type === 'bot-llm-text' && msg.content) {
+        console.log('[Convai Robert] Processing message:', { type: msg.type, content: msg.content?.slice(0, 50), isFinal: msg.isFinal });
+
+        // Process bot responses - check for both 'convai' and 'bot-llm-text' types
+        // Only process final messages to avoid duplicates from streaming
+        if (isBotResponse(msg.type) && msg.content && msg.isFinal !== false) {
           const characterMessage: CharacterMessage = {
             id: msg.id || crypto.randomUUID(),
             speaker: 'robert',
@@ -129,6 +143,7 @@ export function ConvaiProvider({ children, config }: ConvaiProviderProps) {
             timestamp: new Date(msg.timestamp),
           };
 
+          console.log('[Convai Robert] Adding message to UI:', characterMessage.content.slice(0, 50));
           setMessages(prev => [...prev, characterMessage]);
 
           // Update shared context
@@ -149,13 +164,21 @@ export function ConvaiProvider({ children, config }: ConvaiProviderProps) {
     const lindaMessages = lindaClient.chatMessages || [];
     const newMessageCount = lindaMessages.length;
 
+    // Debug: log all messages to understand what types are coming through
+    if (newMessageCount > 0) {
+      console.log('[Convai Linda] chatMessages:', lindaMessages.map(m => ({ type: m.type, content: m.content?.slice(0, 50), isFinal: m.isFinal })));
+    }
+
     if (newMessageCount > prevLindaMessagesRef.current) {
       // Get new messages
       const newMessages = lindaMessages.slice(prevLindaMessagesRef.current);
 
       for (const msg of newMessages) {
-        // Only process bot responses (LLM text)
-        if (msg.type === 'bot-llm-text' && msg.content) {
+        console.log('[Convai Linda] Processing message:', { type: msg.type, content: msg.content?.slice(0, 50), isFinal: msg.isFinal });
+
+        // Process bot responses - check for both 'convai' and 'bot-llm-text' types
+        // Only process final messages to avoid duplicates from streaming
+        if (isBotResponse(msg.type) && msg.content && msg.isFinal !== false) {
           const characterMessage: CharacterMessage = {
             id: msg.id || crypto.randomUUID(),
             speaker: 'linda',
@@ -163,6 +186,7 @@ export function ConvaiProvider({ children, config }: ConvaiProviderProps) {
             timestamp: new Date(msg.timestamp),
           };
 
+          console.log('[Convai Linda] Adding message to UI:', characterMessage.content.slice(0, 50));
           setMessages(prev => [...prev, characterMessage]);
 
           // Update shared context
@@ -246,10 +270,21 @@ export function ConvaiProvider({ children, config }: ConvaiProviderProps) {
 
     // Send to the character who should respond
     // Alternate or based on last speaker
-    const targetClient = sharedContext.lastSpeaker === 'robert' ? lindaClient : robertClient;
+    const targetCharacter = sharedContext.lastSpeaker === 'robert' ? 'linda' : 'robert';
+    const targetClient = targetCharacter === 'robert' ? robertClient : lindaClient;
+
+    console.log('[Convai] Sending message to:', targetCharacter);
+    console.log('[Convai] Target client state:', {
+      isConnected: targetClient.state.isConnected,
+      isBotReady: targetClient.isBotReady,
+      agentState: targetClient.state.agentState,
+    });
 
     if (targetClient.state.isConnected) {
+      console.log('[Convai] Calling sendUserTextMessage:', text.slice(0, 50));
       targetClient.sendUserTextMessage(text);
+    } else {
+      console.warn('[Convai] Target client not connected, cannot send message');
     }
   }, [robertClient, lindaClient, sharedContext.lastSpeaker]);
 
