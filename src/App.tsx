@@ -1,6 +1,6 @@
 import { Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
-import { SessionProvider } from './contexts/SessionContext';
+import { ConvaiProvider } from './contexts/ConvaiContext';
 import Layout from './components/Layout';
 import Home from './pages/Home';
 import CoupleSelection from './pages/CoupleSelection';
@@ -8,10 +8,18 @@ import TherapyRoom from './pages/TherapyRoom';
 import Progress from './pages/Progress';
 import Settings from './pages/Settings';
 
+// Convai configuration from environment variables
+const convaiConfig = {
+  apiKey: import.meta.env.VITE_CONVAI_API_KEY,
+  robertCharId: import.meta.env.VITE_CONVAI_ROBERT_ID,
+  lindaCharId: import.meta.env.VITE_CONVAI_LINDA_ID,
+  endUserId: undefined, // Will be set to user ID when auth is implemented
+};
+
 function App() {
   return (
     <AuthProvider>
-      <SessionProvider>
+      <ConvaiProvider config={convaiConfig}>
         <Routes>
           <Route path="/" element={<Layout />}>
             <Route index element={<Home />} />
@@ -21,7 +29,7 @@ function App() {
             <Route path="settings" element={<Settings />} />
           </Route>
         </Routes>
-      </SessionProvider>
+      </ConvaiProvider>
     </AuthProvider>
   );
 }

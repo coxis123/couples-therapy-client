@@ -5,7 +5,7 @@ import {
   Send, ArrowLeft, ChevronRight, X,
   Lightbulb, Heart
 } from 'lucide-react';
-import { useSession } from '../contexts/SessionContext';
+import { useConvai } from '../contexts/ConvaiContext';
 
 export default function TherapyRoom() {
   const { coupleId } = useParams<{ coupleId: string }>();
@@ -13,48 +13,102 @@ export default function TherapyRoom() {
   const [textInput, setTextInput] = useState('');
   const [showTextInput, setShowTextInput] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [sessionStarted, setSessionStarted] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const {
-    sessionId,
-    isSessionActive,
-    sessionState,
-    messages,
     isConnected,
     isConnecting,
-    isRecording,
-    isMuted,
-    audioLevel,
-    currentTranscript,
-    startSession,
-    endSession,
-    sendTextMessage,
-    toggleMicrophone,
+    isAudioMuted,
+    messages: convaiMessages,
+    userTranscription,
+    robertState,
+    lindaState,
+    currentSpeaker,
+    connect,
+    disconnect,
+    sendTherapistMessage,
     triggerCoupleInteraction,
-  } = useSession();
+    toggleMute,
+    unmute,
+  } = useConvai();
 
+  // Session state for UI (simplified)
+  const [sessionState, setSessionState] = useState({
+    phase: 'opening' as const,
+    emotionalTemperature: 5,
+    activeTopics: [] as string[],
+    interventionCount: 0,
+  });
+
+  // Transform Convai messages to UI format
+  const messages = convaiMessages.map((msg) => ({
+    id: msg.id,
+    actor: msg.speaker === 'therapist' ? 'trainee' as const :
+           msg.speaker === 'robert' ? 'partner_a' as const : 'partner_b' as const,
+    content: msg.content,
+    timestamp: msg.timestamp,
+    emotion: msg.emotion,
+    characterName: msg.speaker === 'robert' ? 'Robert Chen' :
+                   msg.speaker === 'linda' ? 'Linda Chen' : undefined,
+  }));
+
+  // Connect to Convai when the page loads
   useEffect(() => {
-    if (coupleId && !sessionId) {
-      startSession(coupleId);
+    if (coupleId && !sessionStarted) {
+      setSessionStarted(true);
+      connect().catch((err) => {
+        console.error('[TherapyRoom] Failed to connect:', err);
+      });
     }
-  }, [coupleId, sessionId, startSession]);
+  }, [coupleId, sessionStarted, connect]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      disconnect();
+    };
+  }, [disconnect]);
 
   // Auto-scroll to latest message
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, currentTranscript]);
+  }, [messages, userTranscription]);
+
+  // Update intervention count when therapist sends a message
+  useEffect(() => {
+    const therapistMessages = convaiMessages.filter((m) => m.speaker === 'therapist');
+    setSessionState((prev) => ({
+      ...prev,
+      interventionCount: therapistMessages.length,
+    }));
+  }, [convaiMessages]);
 
   const handleEndSession = async () => {
-    await endSession();
+    await disconnect();
     navigate('/couples');
   };
 
   const handleSendText = () => {
     if (textInput.trim()) {
-      sendTextMessage(textInput);
+      sendTherapistMessage(textInput);
       setTextInput('');
     }
   };
+
+  const handleToggleMicrophone = () => {
+    if (isAudioMuted) {
+      unmute();
+    } else {
+      toggleMute();
+    }
+  };
+
+  // Determine if either character is currently speaking
+  const isSomeoneSpeaking = robertState.isSpeaking || lindaState.isSpeaking;
+
+  // Simulated audio level based on speaking state
+  const audioLevel = isSomeoneSpeaking ? 0.6 : 0;
 
   const getPhaseClass = (phase: string) => {
     switch (phase) {
@@ -137,7 +191,7 @@ export default function TherapyRoom() {
           <div className="flex-1 overflow-y-auto px-4 py-6 pb-48">
             <div className="max-w-2xl mx-auto space-y-4">
               {/* Empty State */}
-              {messages.length === 0 && isSessionActive && (
+              {messages.length === 0 && isConnected && (
                 <div className="text-center py-16 animate-message-appear">
                   <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-earth-100
                                   flex items-center justify-center">
@@ -200,7 +254,7 @@ export default function TherapyRoom() {
               ))}
 
               {/* Current Transcript (Interim) */}
-              {currentTranscript && (
+              {userTranscription && (
                 <div className="flex justify-end animate-message-appear">
                   <div className="max-w-[85%] sm:max-w-md">
                     <div className="flex items-center gap-2 mb-1.5 justify-end">
@@ -214,7 +268,7 @@ export default function TherapyRoom() {
                       </div>
                     </div>
                     <div className="bubble-trainee opacity-70">
-                      <p className="leading-relaxed italic">{currentTranscript}</p>
+                      <p className="leading-relaxed italic">{userTranscription}</p>
                     </div>
                   </div>
                 </div>
@@ -278,20 +332,20 @@ export default function TherapyRoom() {
 
                   {/* Microphone Button */}
                   <button
-                    onClick={toggleMicrophone}
+                    onClick={handleToggleMicrophone}
                     className={`mic-button w-16 h-16 ${
-                      isMuted ? 'mic-button-idle' : 'mic-button-recording'
+                      isAudioMuted ? 'mic-button-idle' : 'mic-button-recording'
                     }`}
                   >
-                    {isMuted ? <MicOff size={28} /> : <Mic size={28} />}
+                    {isAudioMuted ? <MicOff size={28} /> : <Mic size={28} />}
 
                     {/* Breathing Ring */}
-                    {!isMuted && isRecording && (
+                    {!isAudioMuted && (
                       <div className="breathing-ring" />
                     )}
 
                     {/* Audio Level Ring */}
-                    {!isMuted && (
+                    {!isAudioMuted && (
                       <div
                         className="absolute inset-0 rounded-full border-4 border-terracotta-400
                                    transition-all duration-100"
@@ -305,7 +359,7 @@ export default function TherapyRoom() {
 
                   {/* Couple Interaction */}
                   <button
-                    onClick={triggerCoupleInteraction}
+                    onClick={() => triggerCoupleInteraction()}
                     className="p-3 rounded-xl bg-earth-100 text-earth-500
                                hover:bg-earth-200 hover:text-earth-700 transition-all"
                     title="Let them talk to each other"
@@ -316,9 +370,11 @@ export default function TherapyRoom() {
               )}
 
               {/* Recording Status */}
-              {isRecording && !isMuted && !showTextInput && (
+              {!isAudioMuted && !showTextInput && (
                 <p className="text-center text-sm text-earth-500 mt-3 animate-pulse">
-                  Listening...
+                  {isSomeoneSpeaking
+                    ? `${currentSpeaker === 'robert' ? 'Robert' : 'Linda'} is speaking...`
+                    : 'Listening...'}
                 </p>
               )}
             </div>
