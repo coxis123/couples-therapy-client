@@ -53,7 +53,11 @@ export default function TherapyRoom() {
                    msg.speaker === 'linda' ? 'Linda Chen' : undefined,
   }));
 
-  // Connect to Convai when the page loads
+  // Store disconnect in a ref to avoid stale closure in cleanup
+  const disconnectRef = useRef(disconnect);
+  disconnectRef.current = disconnect;
+
+  // Connect to Convai when the page loads, cleanup on unmount
   useEffect(() => {
     if (coupleId && !sessionStarted) {
       setSessionStarted(true);
@@ -61,14 +65,13 @@ export default function TherapyRoom() {
         console.error('[TherapyRoom] Failed to connect:', err);
       });
     }
-  }, [coupleId, sessionStarted, connect]);
 
-  // Cleanup on unmount
-  useEffect(() => {
+    // Cleanup on unmount only
     return () => {
-      disconnect();
+      disconnectRef.current();
     };
-  }, [disconnect]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coupleId, sessionStarted]);
 
   // Auto-scroll to latest message
   useEffect(() => {
