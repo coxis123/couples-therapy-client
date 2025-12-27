@@ -110,6 +110,21 @@ export function ConvaiProvider({ children, config }: ConvaiProviderProps) {
   // when triggerCoupleInteraction is called, not via automatic syncing.
   // This prevents infinite response loops.
 
+  // Set up message event listeners for more reliable message capture
+  useEffect(() => {
+    const unsubscribeRobert = robertClient.on('message', (message: any) => {
+      console.log('[Convai Robert EVENT] message received:', message);
+    });
+    const unsubscribeLinda = lindaClient.on('message', (message: any) => {
+      console.log('[Convai Linda EVENT] message received:', message);
+    });
+
+    return () => {
+      unsubscribeRobert?.();
+      unsubscribeLinda?.();
+    };
+  }, [robertClient, lindaClient]);
+
   // Helper to check if message is a bot response we should display
   const isBotResponse = (type: string) => {
     // 'convai' is the main character response, 'bot-llm-text' is LLM-generated text
@@ -123,7 +138,15 @@ export function ConvaiProvider({ children, config }: ConvaiProviderProps) {
 
     // Debug: log all messages to understand what types are coming through
     if (newMessageCount > 0) {
-      console.log('[Convai Robert] chatMessages:', robertMessages.map(m => ({ type: m.type, content: m.content?.slice(0, 50), isFinal: m.isFinal })));
+      console.log('[Convai Robert] chatMessages count:', newMessageCount);
+      robertMessages.forEach((m, i) => {
+        console.log(`[Convai Robert] Message ${i}:`, {
+          type: m.type,
+          content: m.content,
+          contentLength: m.content?.length || 0,
+          isFinal: m.isFinal
+        });
+      });
     }
 
     if (newMessageCount > prevRobertMessagesRef.current) {
